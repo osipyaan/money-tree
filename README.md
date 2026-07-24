@@ -1,4 +1,4 @@
-# Money Tree — AI-Powered Financial Literacy Assistant for Women
+# money tree: ai-powered accessible financial literacy for women
 
 A cross-platform, privacy-first financial literacy and voice assistant built with Streamlit.
 
@@ -13,12 +13,12 @@ A cross-platform, privacy-first financial literacy and voice assistant built wit
 - Privacy-first mode configuration
 
 ### AI Financial Assistant
-- **Text and voice input** — type or speak your question
-- Multimodal output — text response + optional spoken playback
-- **Regional context** — tax notes, retirement programs, credit guidance, scam alerts
-- Adaptive knowledge level — responses get more sophisticated as you use the app
+- **Text and voice input** allows you to type or speak your question
+- Multimodal output provides a text response + optional spoken playback
+- **Regional context** includes tax notes, retirement programs, credit guidance, scam alerts
+- Adaptive knowledge level is utilized, with responses getting more sophisticated as you use the app
 - One-tap message deletion ("scrap") and full history wipe
-- Privacy mode — no conversation history stored
+- Privacy mode is implemented, with no conversation history stored
 
 ### Financial Education Library
 - 5+ in-depth educational modules (more can be added to `core/data.py`)
@@ -98,4 +98,4 @@ No other files need changes.
 
 ---
 
-*Made with IBM Bob*
+*Made with IBM Bob and Claude Code 🤖*
