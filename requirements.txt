@@ -1,0 +1,22 @@
+# Money Tree — AI Financial Literacy Assistant
+# Core Streamlit dependency is already in the environment.
+
+# Loads OPENAI_API_KEY (and other secrets) from a local .env file — never commit .env itself.
+python-dotenv>=1.0.0
+
+# Optional providers — install to unlock full functionality:
+
+# Enables AI-powered responses (requires OPENAI_API_KEY env var, set via .env):
+openai>=1.0.0
+
+# Uncomment to enable voice input (speech-to-text):
+# SpeechRecognition>=3.10.0
+
+# Uncomment to enable voice output (text-to-speech):
+# gTTS>=2.5.0
+
+# Uncomment for on-device encryption of stored data:
+# cryptography>=42.0.0
+
+# Uncomment for local Whisper transcription (fully private, no API key needed):
+# openai-whisper>=20231117

@@ -1,0 +1,19 @@
+# Secrets — never commit real API keys
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Claude Code local-only settings (machine-specific permissions cache)
+.claude/settings.local.json
+
+# OS/editor cruft
+.DS_Store
