@@ -1,6 +1,7 @@
 # money tree: ai-powered accessible financial literacy for women
 
 A cross-platform, privacy-first financial literacy and voice assistant built with Streamlit.
+Made for the Assistive Innovation Challenge 2026.
 
 ---
 
