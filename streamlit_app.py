@@ -351,14 +351,23 @@ def _inject_theme_css() -> None:
             color: #ffffff !important;
         }
         [data-testid="stIconMaterial"],
-        [data-testid="stIconMaterial"] * {
+        [data-testid="stIconMaterial"] *,
+        [data-testid="stAlertDynamicIcon"],
+        [data-testid="stAlertDynamicIcon"] * {
             font-family: "Material Symbols Rounded" !important;
             color: #ffffff !important;
         }
-        /* Secondary/default buttons: text above is forced white, so give
-           them a black background too (primary buttons keep their own
-           themed background from the rule declared earlier, which wins
-           on higher selector specificity). */
+        /* Secondary/default buttons: give them a black background AND force
+           the label text white. The theme block above sets its own
+           ".stButton button { color: {theme text} }" at equal specificity,
+           so background-only overrides here were being cancelled out by
+           that leftover (often dark) text colour — explicitly repaint the
+           label (and any nested p/span) so it can never inherit it. */
+        .stButton button,
+        .stButton button p,
+        .stButton button span:not([data-testid="stIconMaterial"]) {
+            color: #ffffff !important;
+        }
         .stButton button {
             background: #000000 !important;
             border-color: #ffffff !important;
@@ -366,6 +375,25 @@ def _inject_theme_css() -> None:
         [data-testid="stVerticalBlockBorderWrapper"] {
             background: #111111 !important;
             border-color: #ffffff !important;
+        }
+        /* Alert boxes (st.info / st.warning / st.success / st.error) keep
+           Streamlit's default light tint unless repainted here — their text
+           was already being forced white by the rules above, which left
+           white-on-white/near-white alerts. Give the container a dark
+           background so the (already white) text stays legible. */
+        [data-testid="stAlertContainer"] {
+            background: #111111 !important;
+            border: 1px solid #ffffff !important;
+        }
+        [data-testid="stAlertContentInfo"],
+        [data-testid="stAlertContentInfo"] *:not([data-testid="stIconMaterial"]),
+        [data-testid="stAlertContentWarning"],
+        [data-testid="stAlertContentWarning"] *:not([data-testid="stIconMaterial"]),
+        [data-testid="stAlertContentSuccess"],
+        [data-testid="stAlertContentSuccess"] *:not([data-testid="stIconMaterial"]),
+        [data-testid="stAlertContentError"],
+        [data-testid="stAlertContentError"] *:not([data-testid="stIconMaterial"]) {
+            color: #ffffff !important;
         }
         input, textarea, select {
             background: #111111 !important;
