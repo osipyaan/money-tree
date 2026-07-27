@@ -400,6 +400,27 @@ def _inject_theme_css() -> None:
             color: #ffffff !important;
             border-color: #888888 !important;
         }
+        /* Placeholder text (e.g. the chat input's "Ask me anything…") defaults
+           to a translucent version of the theme's original dark text colour —
+           invisible against the dark input background set above. */
+        input::placeholder, textarea::placeholder {
+            color: rgba(255, 255, 255, 0.65) !important;
+            opacity: 1 !important;
+        }
+        /* Decorative header/card banners (the onboarding welcome banner, the
+           sidebar "Money Tree" card, life-stage selection cards) hardcode a
+           light inline background. Their text is forced white above, so
+           repaint these specific light patterns dark too, keeping the same
+           striped motif where present instead of just flattening it. */
+        [style*="repeating-linear-gradient"] {
+            background: repeating-linear-gradient(135deg, #111111 0 16px, #000000 16px 32px) !important;
+        }
+        [style*="background: rgb(255, 255, 255)"],
+        [style*="background: rgb(245, 243, 255)"],
+        [style*="background:#f5f3ff"],
+        [style*="background:#ffffff"] {
+            background: #111111 !important;
+        }
         a { color: #7dd3fc !important; }
         </style>
         """)
