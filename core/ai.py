@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import textwrap
+from itertools import zip_longest
 from typing import Iterator
 
 # ---------------------------------------------------------------------------
@@ -210,6 +211,91 @@ def _demo_response(user_message: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# News headline interpretation
+# ---------------------------------------------------------------------------
+
+# Keyword -> "why this matters" angle, checked against the headline itself
+# (not the generic 6-bucket chat classifier, which has no idea what a
+# headline is actually about and was falling back to a canned greeting).
+_HEADLINE_ANGLES: list[tuple[list[str], str]] = [
+    (["rate", "rates", "fed", "central bank", "repo rate", "interest rate"],
+     "Interest rate moves affect borrowing costs — credit cards, loans, mortgages — and how "
+     "much your savings can earn."),
+    (["inflation", "prices", "cost of living", "cpi"],
+     "Rising prices mean your income doesn't stretch as far, which is worth checking against "
+     "your budget's needs-vs-wants split."),
+    (["job", "jobs", "employment", "unemployment", "layoff", "layoffs", "hiring"],
+     "Shifts in the job market affect income stability — a good moment to check your emergency "
+     "fund still covers a few months of expenses."),
+    (["tax", "taxes", "budget", "government spending", "deficit", "subsidy", "subsidies"],
+     "Government fiscal policy can change what you owe, or what support programmes are "
+     "available to you."),
+    (["currency", "exchange rate", "dollar", "rupee", "pound", "peso", "naira", "rand", "real",
+      "yen", "euro"],
+     "Currency swings affect the cost of imported goods, travel, and cross-border remittances."),
+    (["stock", "stocks", "market", "shares", "index", "nasdaq", "sensex", "nifty", "dow"],
+     "Market movements affect the value of any investments you hold — short-term swings rarely "
+     "justify changing a long-term plan, though."),
+    (["housing", "mortgage", "property", "rent", "home prices"],
+     "Housing market shifts affect affordability whether you're renting, buying, or paying down "
+     "a mortgage."),
+    (["trade", "tariff", "tariffs", "export", "import"],
+     "Trade policy changes can affect prices of everyday goods and job security in "
+     "export/import-dependent industries."),
+]
+
+
+def _demo_headline_analysis(title: str, country: str, life_stage: str) -> str:
+    """Headline-aware fallback used when no LLM is connected. Unlike the
+    generic chat demo responses, this always references the actual headline."""
+    lower = title.lower()
+    angle = next(
+        (text for keywords, text in _HEADLINE_ANGLES if any(k in lower for k in keywords)),
+        "Broader economic news like this shapes the environment your financial decisions happen "
+        "in, even when the link to your day-to-day finances isn't immediate.",
+    )
+    return (
+        f"On \"{title}\": {angle} For someone in {country} at the {life_stage} stage, it's worth "
+        "keeping an eye on how this develops rather than reacting immediately.\n\n"
+        "**One concrete takeaway:** revisit your budget or emergency fund this week to make sure "
+        "it still reflects your current situation."
+    )
+
+
+def analyze_headline(
+    title: str,
+    country: str,
+    life_stage: str,
+    system_prompt: str,
+) -> str:
+    """
+    Produce a short, headline-specific interpretation ("what does this mean for me?").
+
+    Provider priority:
+    1. OpenAI (if configured) — asked directly about this specific headline.
+    2. A headline-aware demo fallback that references the actual headline
+       (not the generic 6-bucket chat classifier, which has no notion of
+       news content and was misclassifying every headline as a greeting).
+
+    Always ends with a reminder to check other sources, regardless of provider.
+    """
+    if HAS_OPENAI and os.environ.get("OPENAI_API_KEY"):
+        question = (
+            f'A financial news headline just came up: "{title}". '
+            "In 2-3 short sentences, explain why this might matter for someone in my situation "
+            "and give one concrete, actionable takeaway. Don't just restate the headline."
+        )
+        analysis = _openai_response(question, [], system_prompt, stream=False)
+    else:
+        analysis = _demo_headline_analysis(title, country, life_stage)
+
+    return analysis + (
+        "\n\n*This is one interpretation — seek out other news sources for different "
+        "perspectives on this story.*"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Speech-to-text (transcription)
 # ---------------------------------------------------------------------------
 
@@ -287,7 +373,7 @@ def capability_report() -> dict:
 # Live financial news (country-specific, no API key required)
 # ---------------------------------------------------------------------------
 
-# Maps country code → search query term for Google News RSS
+# Maps country code → women-focused personal finance search query (Google News RSS)
 _NEWS_QUERIES: dict[str, str] = {
     "IN": "India women personal finance",
     "US": "United States women personal finance",
@@ -306,18 +392,32 @@ _NEWS_QUERIES: dict[str, str] = {
     "EG": "Egypt women personal finance",
 }
 
+# Maps country code → broader economy/business search query, interspersed with
+# the women-focused headlines above so the feed isn't narrowed to one lens.
+_NEWS_QUERIES_GENERAL: dict[str, str] = {
+    "IN": "India economy business news",
+    "US": "United States economy business news",
+    "GB": "UK economy business news",
+    "CA": "Canada economy business news",
+    "AU": "Australia economy business news",
+    "NG": "Nigeria economy business news",
+    "ZA": "South Africa economy business news",
+    "BR": "Brazil economia negócios notícias",
+    "MX": "Mexico economía negocios noticias",
+    "DE": "Deutschland Wirtschaft Nachrichten",
+    "FR": "France économie actualités",
+    "JP": "Japan economy business news",
+    "PH": "Philippines economy business news",
+    "KE": "Kenya economy business news",
+    "EG": "Egypt economy business news",
+}
 
-def fetch_financial_news(country_code: str, max_items: int = 5) -> list[dict]:
-    """
-    Fetch recent financial news headlines for the given country.
-    Uses Google News RSS — no API key required.
-    Returns a list of {title, link, published} dicts, or [] on failure.
-    """
+
+def _fetch_rss(query: str, max_items: int) -> list[dict]:
     import urllib.request
     import urllib.parse
     import xml.etree.ElementTree as ET
 
-    query = _NEWS_QUERIES.get(country_code, f"{country_code} women personal finance")
     encoded = urllib.parse.quote(query)
     url = f"https://news.google.com/rss/search?q={encoded}&hl=en&gl=US&ceid=US:en"
 
@@ -336,3 +436,30 @@ def fetch_financial_news(country_code: str, max_items: int = 5) -> list[dict]:
         return items
     except Exception:
         return []
+
+
+def fetch_financial_news(country_code: str, max_items: int = 5) -> list[dict]:
+    """
+    Fetch recent financial news headlines for the given country, blending two
+    lenses — women-focused personal finance and broader economy/business news
+    — interleaved so neither dominates the feed.
+    Uses Google News RSS — no API key required.
+    Returns a list of {title, link, published} dicts, or [] on failure.
+    """
+    per_query = max(3, (max_items + 1) // 2 + 1)
+    women_focused = _fetch_rss(
+        _NEWS_QUERIES.get(country_code, f"{country_code} women personal finance"), per_query
+    )
+    general = _fetch_rss(
+        _NEWS_QUERIES_GENERAL.get(country_code, f"{country_code} economy business news"), per_query
+    )
+
+    combined: list[dict] = []
+    seen_links: set[str] = set()
+    for pair in zip_longest(women_focused, general):
+        for item in pair:
+            if item and item["link"] not in seen_links:
+                combined.append(item)
+                seen_links.add(item["link"])
+
+    return combined[:max_items]

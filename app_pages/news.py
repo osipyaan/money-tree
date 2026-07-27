@@ -53,20 +53,13 @@ def _build_system_prompt() -> str:
 
 
 def _analyze_headline(title: str) -> str:
-    question = (
-        f'A financial news headline just came up: "{title}". '
-        "In 2-3 short sentences, explain why this might matter for someone in my situation "
-        "and give one concrete takeaway. Don't just restate the headline."
-    )
-    response = ai.generate_response(
-        user_message=question,
-        conversation_history=[],
+    country = st.session_state.get("profile_country", "US")
+    return ai.analyze_headline(
+        title=title,
+        country=get_country_name(country),
+        life_stage=_get_life_stage_label(),
         system_prompt=_build_system_prompt(),
-        stream=False,
     )
-    if hasattr(response, "__iter__") and not isinstance(response, str):
-        response = "".join(response)
-    return response
 
 
 def render() -> None:

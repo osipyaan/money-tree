@@ -6,6 +6,8 @@ No external dependencies beyond stdlib.
 
 from __future__ import annotations
 
+import re
+
 COUNTRIES: list[dict] = [
     {"code": "US", "name": "United States", "currency": "USD", "region": "north_america"},
     {"code": "GB", "name": "United Kingdom", "currency": "GBP", "region": "europe"},
@@ -539,19 +541,25 @@ def get_currency(country_code: str) -> str:
     return "USD"
 
 
+def _has_any_word(lower_text: str, words: list[str]) -> bool:
+    """Whole-word/phrase matching — plain substring checks would let short
+    words like "hi" false-positive inside unrelated words like "this"."""
+    return any(re.search(rf"\b{re.escape(w)}\b", lower_text) for w in words)
+
+
 def classify_query(text: str) -> str:
     """Naive keyword classifier used when no LLM is available."""
     lower = text.lower()
-    if any(w in lower for w in ["hello", "hi", "hey", "start", "begin"]):
+    if _has_any_word(lower, ["hello", "hi", "hey", "start", "begin"]):
         return "greeting"
-    if any(w in lower for w in ["emergency", "rainy day", "cushion", "safety net"]):
+    if _has_any_word(lower, ["emergency", "rainy day", "cushion", "safety net"]):
         return "emergency_fund"
-    if any(w in lower for w in ["invest", "stock", "fund", "etf", "portfolio", "index", "equity"]):
+    if _has_any_word(lower, ["invest", "investing", "stock", "fund", "etf", "portfolio", "index", "equity"]):
         return "investing"
-    if any(w in lower for w in ["budget", "spending", "track", "50/30", "money plan"]):
+    if _has_any_word(lower, ["budget", "spending", "track", "50/30", "money plan"]):
         return "budget"
-    if any(w in lower for w in ["debt", "loan", "credit card", "owe", "repay", "payoff", "snowball", "avalanche"]):
+    if _has_any_word(lower, ["debt", "loan", "credit card", "owe", "repay", "payoff", "snowball", "avalanche"]):
         return "debt"
-    if any(w in lower for w in ["scam", "fraud", "phishing", "suspicious", "fake", "too good"]):
+    if _has_any_word(lower, ["scam", "fraud", "phishing", "suspicious", "fake", "too good"]):
         return "scam"
     return "default"
