@@ -61,6 +61,9 @@ def _build_system_prompt() -> str:
         goals=goals,
         knowledge_level=knowledge,
         regional_content=regional,
+        accessibility_needs=st.session_state.get("accessibility_needs", []),
+        simplified_language=st.session_state.get("simplified_language", False),
+        communication_mode=st.session_state.get("communication_mode", "text"),
     )
 
 
@@ -70,9 +73,22 @@ def _render_message(msg: dict, idx: int) -> None:
     ts = msg.get("ts", "")
     msg_id = msg["id"]
 
+    # Synthesize speech up front (if applicable) so the text block below can be
+    # explicitly labelled as the live transcript of that audio, rather than a
+    # second, unlabelled copy of the same words.
+    audio_bytes = None
+    if role == "assistant" and st.session_state.get("voice_enabled"):
+        audio_bytes = ai.synthesize_speech(
+            content[:600],
+            language=st.session_state.get("profile_language", "en"),
+        )
+    show_captions = audio_bytes and st.session_state.get("captions_enabled", True)
+
     with st.chat_message(role, avatar=":material/auto_awesome:" if role == "assistant" else ":material/person:"):
         col_text, col_del = st.columns([12, 1])
         with col_text:
+            if show_captions:
+                st.caption(":material/closed_caption: Live transcript of spoken response")
             st.markdown(content)
             if ts:
                 try:
@@ -90,13 +106,8 @@ def _render_message(msg: dict, idx: int) -> None:
                 st.rerun()
 
         # TTS playback if speech synthesis available and voice enabled
-        if role == "assistant" and st.session_state.get("voice_enabled"):
-            audio_bytes = ai.synthesize_speech(
-                content[:600],
-                language=st.session_state.get("profile_language", "en"),
-            )
-            if audio_bytes:
-                st.audio(audio_bytes, format="audio/mp3", autoplay=False)
+        if audio_bytes:
+            st.audio(audio_bytes, format="audio/mp3", autoplay=False)
 
 
 # ---------------------------------------------------------------------------

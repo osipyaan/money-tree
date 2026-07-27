@@ -5,7 +5,8 @@ Steps:
   1. Welcome + language/country selection
   2. Life stage selection
   3. Financial goals selection (preset + custom)
-  4. Accessibility preferences
+  4. Accessibility & communication preferences (Deaf/hard of hearing, low vision,
+     cognitive accessibility, voice vs. text) — structured, not free text
   5. Privacy preferences
   6. Completion → redirect to assistant
 """
@@ -20,7 +21,18 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 from core import state
 from core.data import (
     COUNTRIES, LANGUAGES, LIFE_STAGES, PRESET_GOALS, AGE_RANGES,
+    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES,
 )
+
+_EXCLUSIVE_NEEDS = {"none", "prefer_not_say"}
+
+
+def _resolve_exclusive_needs(selected: list[str]) -> list[str]:
+    """"None of these apply" / "Prefer not to say" can't combine with real needs."""
+    exclusive_selected = [n for n in selected if n in _EXCLUSIVE_NEEDS]
+    if exclusive_selected and len(selected) > 1:
+        return [exclusive_selected[-1]]
+    return selected
 
 _STAGE_EMOJI = {
     "student": "🎓",
@@ -255,33 +267,99 @@ def render() -> None:
                 st.session_state.onboarding_step = 4
                 st.rerun()
 
-    # ── Step 4 — Accessibility ───────────────────────────────────────────────
+    # ── Step 4 — Accessibility & communication preferences ──────────────────
     elif step == 4:
-        st.subheader(":material/accessibility: Customise your experience")
+        st.subheader(":material/accessibility: Accessibility & how you'd like to communicate")
         st.caption(
-            "Adjust these settings at any time in Settings. They only affect appearance — "
-            "your data and preferences are always preserved."
+            "This actively shapes the layout and how the AI assistant responds to you — "
+            "it's not just a note we file away. You can change any of this later in Settings."
         )
 
+        st.markdown(
+            "**Do any of these describe you?** *(select all that apply — this is never shared "
+            "and only used to tailor your experience)*"
+        )
+        current_needs = list(st.session_state.get("accessibility_needs", []))
+        picked_needs: list[str] = []
+        for need in ACCESSIBILITY_NEEDS:
+            checked = st.checkbox(
+                need["label"],
+                value=need["id"] in current_needs,
+                key=f"onb_need_{need['id']}",
+                help=need.get("description") or None,
+            )
+            if checked:
+                picked_needs.append(need["id"])
+        picked_needs = _resolve_exclusive_needs(picked_needs)
+
+        is_deaf_hoh = "deaf_hoh" in picked_needs
+        is_low_vision = "low_vision" in picked_needs
+        is_cognitive = "cognitive" in picked_needs
+
+        st.divider()
+        st.markdown("**Would you prefer to switch to voice-only, stay with text, or use both?**")
+        if is_deaf_hoh:
+            st.info(
+                ":material/info: Since you're Deaf or hard of hearing, Money Tree will always keep "
+                "a live visual transcript on screen for any spoken response — even in voice mode, "
+                "you'll never need to rely on audio alone.",
+                icon=None,
+            )
+
+        mode_labels = [m["label"] for m in COMMUNICATION_MODES]
+        mode_captions = [m["description"] for m in COMMUNICATION_MODES]
+        current_mode_id = st.session_state.get("communication_mode", "text")
+        current_mode_label = next(
+            (m["label"] for m in COMMUNICATION_MODES if m["id"] == current_mode_id),
+            mode_labels[0],
+        )
+        selected_mode_label = st.radio(
+            "Communication mode",
+            mode_labels,
+            index=mode_labels.index(current_mode_label),
+            captions=mode_captions,
+            label_visibility="collapsed",
+        )
+        selected_mode_id = next(
+            m["id"] for m in COMMUNICATION_MODES if m["label"] == selected_mode_label
+        )
+
+        captions_enabled = st.session_state.get("captions_enabled", True)
+        if selected_mode_id in ("voice", "both"):
+            captions_enabled = st.toggle(
+                ":material/closed_caption: Show a live visual transcript whenever the assistant speaks",
+                value=captions_enabled or is_deaf_hoh,
+                disabled=is_deaf_hoh,
+                help="Lets you follow spoken responses in real time as text — recommended for everyone.",
+            )
+
+        st.divider()
+        st.markdown("**Display preferences**")
         with st.container(border=True):
             acc = st.toggle(
                 ":material/text_increase: Accessibility-first mode",
-                value=st.session_state.accessibility_mode,
+                value=st.session_state.accessibility_mode or is_low_vision,
                 help="Enables large text, simplified layouts, and higher-contrast colours.",
             )
             hc = st.toggle(
                 ":material/contrast: High contrast",
-                value=st.session_state.high_contrast,
+                value=st.session_state.high_contrast or is_low_vision,
             )
             lt = st.toggle(
                 ":material/format_size: Large text",
-                value=st.session_state.large_text,
+                value=st.session_state.large_text or is_low_vision,
             )
             rm = st.toggle(
                 ":material/motion_photos_off: Reduce motion",
                 value=st.session_state.reduced_motion,
                 help="Disables animations and transitions.",
             )
+
+        simplified = st.toggle(
+            ":material/short_text: Use shorter sentences & simpler structure in AI responses",
+            value=st.session_state.get("simplified_language", False) or is_cognitive,
+            help="Breaks answers into small steps, avoids idioms and jargon, and keeps one idea per sentence.",
+        )
 
         st.divider()
         bcol1, bcol2 = st.columns([1, 4])
@@ -292,10 +370,15 @@ def render() -> None:
         with bcol2:
             if st.button("Continue", type="primary", icon=":material/arrow_forward:"):
                 # Apply immediately so theme CSS picks them up before next render
+                st.session_state.accessibility_needs = picked_needs
+                st.session_state.communication_mode = selected_mode_id
+                st.session_state.captions_enabled = captions_enabled
+                st.session_state.voice_enabled = selected_mode_id in ("voice", "both")
                 st.session_state.accessibility_mode = acc
                 st.session_state.high_contrast = hc
                 st.session_state.large_text = lt
                 st.session_state.reduced_motion = rm
+                st.session_state.simplified_language = simplified
                 st.session_state.onboarding_step = 5
                 st.rerun()
 

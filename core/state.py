@@ -29,6 +29,11 @@ _DEFAULTS: dict = {
     "high_contrast": False,
     "large_text": False,
     "reduced_motion": True,
+    # Accessibility needs & communication preferences (structured, not free text)
+    "accessibility_needs": [],       # list of ids from core.data.ACCESSIBILITY_NEEDS
+    "communication_mode": "text",    # "text" | "voice" | "both" — from core.data.COMMUNICATION_MODES
+    "captions_enabled": True,        # live visual transcript whenever the assistant speaks
+    "simplified_language": False,    # cognitive accessibility: shapes AI response style
     # Theme: "purple" | "pink" | "lofi" | "bw"
     "active_theme": "purple",
     # Privacy
