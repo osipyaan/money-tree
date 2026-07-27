@@ -190,27 +190,36 @@ def _render_accessibility() -> None:
     st.caption("Changes take effect immediately — no save button needed.")
 
     with st.container(border=True):
-        # Each toggle writes directly to session state via on_change callback
+        # Explicit value= is required here: a key-only toggle never visually
+        # renders as checked on its first appearance even when the underlying
+        # session_state value is already True (e.g. set by defaults or by
+        # onboarding), which also makes the widget unreliable to click since
+        # there's no visual feedback of its real state.
         acc = st.toggle(
             ":material/text_increase: Accessibility-first mode",
+            value=st.session_state.get("accessibility_mode", False),
             key="accessibility_mode",
             help="Enables large text, simplified layouts, and high-contrast styling.",
         )
         hc = st.toggle(
             ":material/contrast: High contrast",
+            value=st.session_state.get("high_contrast", False),
             key="high_contrast",
         )
         lt = st.toggle(
             ":material/format_size: Large text (19px+)",
+            value=st.session_state.get("large_text", False),
             key="large_text",
         )
         rm = st.toggle(
             ":material/motion_photos_off: Reduce motion",
+            value=st.session_state.get("reduced_motion", True),
             key="reduced_motion",
         )
 
     st.toggle(
         ":material/short_text: Use shorter sentences & simpler structure in AI responses",
+        value=st.session_state.get("simplified_language", False),
         key="simplified_language",
         help="Breaks answers into small steps, avoids idioms and jargon, and keeps one idea per sentence.",
     )
