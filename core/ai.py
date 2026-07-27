@@ -32,6 +32,58 @@ HAS_SR = _has("speech_recognition")
 # AI response generation (LLM layer)
 # ---------------------------------------------------------------------------
 
+def _build_accessibility_guidelines(
+    accessibility_needs: list[str],
+    simplified_language: bool,
+    communication_mode: str,
+) -> str:
+    """
+    Translate structured accessibility/communication preferences into concrete
+    instructions for the model. This is deliberately NOT derived from free text —
+    each need maps to specific, testable response behaviour.
+    """
+    lines: list[str] = []
+
+    if "deaf_hoh" in accessibility_needs:
+        lines.append(
+            "- The user is Deaf or hard of hearing. Never assume they heard a previous spoken "
+            "response, and never refer to tone of voice, sounds, or \"as I said\" in a way that "
+            "presumes audio was heard. Every piece of information must be fully present in the "
+            "text itself."
+        )
+    if "low_vision" in accessibility_needs:
+        lines.append(
+            "- The user has low vision or is blind. Do not convey meaning through colour, icons, "
+            "or spatial position alone — describe things in words. Prefer short paragraphs and "
+            "simple linear structure over wide tables or dense layouts, since these are hard to "
+            "follow with a screen reader or magnification."
+        )
+    if "cognitive" in accessibility_needs or simplified_language:
+        lines.append(
+            "- Use short sentences and one idea per sentence. Avoid idioms, sarcasm, and stacking "
+            "multiple instructions together. Break anything multi-step into a numbered list, and "
+            "keep each response focused on a single topic rather than covering many at once."
+        )
+    if communication_mode == "voice":
+        lines.append(
+            "- This response will be read aloud as the user's primary channel. Avoid content that "
+            "only makes sense visually (tables, \"see below\", emoji used for meaning). Write in "
+            "clear spoken-language sentences, and read numbers/symbols in a way that sounds natural "
+            "out loud."
+        )
+    elif communication_mode == "both":
+        lines.append(
+            "- This response may be read aloud in addition to being shown as text. Keep it "
+            "listener-friendly (avoid relying on visual-only cues) while still being easy to scan "
+            "as text."
+        )
+
+    if not lines:
+        lines.append("- No specific accessibility needs indicated. Follow the standard guidelines above.")
+
+    return "\n        ".join(lines)
+
+
 def build_system_prompt(
     country: str,
     language: str,
@@ -39,8 +91,14 @@ def build_system_prompt(
     goals: list[str],
     knowledge_level: str,
     regional_content: dict,
+    accessibility_needs: list[str] | None = None,
+    simplified_language: bool = False,
+    communication_mode: str = "text",
 ) -> str:
     goals_str = ", ".join(goals) if goals else "general financial wellness"
+    accessibility_block = _build_accessibility_guidelines(
+        accessibility_needs or [], simplified_language, communication_mode
+    )
     return textwrap.dedent(f"""
         You are Money Tree, an AI-powered financial literacy assistant designed specifically
         for women worldwide. Your mission: help users build genuine financial confidence,
@@ -60,6 +118,11 @@ def build_system_prompt(
         Retirement    : {regional_content.get('retirement_programs', '')}
         Credit note   : {regional_content.get('credit_note', '')}
         Scam alert    : {regional_content.get('scam_alert', '')}
+
+        ACCESSIBILITY & COMMUNICATION GUIDELINES (structural — always apply, do not ask the
+        user to restate these in free text)
+        ───────────────────────────────────────────────────
+        {accessibility_block}
 
         RESPONSE GUIDELINES
         ────────────────────

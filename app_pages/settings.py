@@ -11,7 +11,19 @@ import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
 from core import state, ai
-from core.data import COUNTRIES, LANGUAGES, LIFE_STAGES, PRESET_GOALS, AGE_RANGES, get_country_name
+from core.data import (
+    COUNTRIES, LANGUAGES, LIFE_STAGES, PRESET_GOALS, AGE_RANGES, get_country_name,
+    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES,
+)
+
+_EXCLUSIVE_NEEDS = {"none", "prefer_not_say"}
+
+
+def _resolve_exclusive_needs(selected: list[str]) -> list[str]:
+    exclusive_selected = [n for n in selected if n in _EXCLUSIVE_NEEDS]
+    if exclusive_selected and len(selected) > 1:
+        return [exclusive_selected[-1]]
+    return selected
 
 
 def render() -> None:
@@ -118,6 +130,62 @@ def _render_privacy() -> None:
 
 
 def _render_accessibility() -> None:
+    st.subheader("Accessibility needs")
+    st.caption(
+        "This actively shapes the layout and how the AI assistant responds — not just a note "
+        "we file away. Changes take effect immediately."
+    )
+
+    current_needs = list(st.session_state.get("accessibility_needs", []))
+    picked_needs: list[str] = []
+    for need in ACCESSIBILITY_NEEDS:
+        checked = st.checkbox(
+            need["label"],
+            value=need["id"] in current_needs,
+            key=f"settings_need_{need['id']}",
+            help=need.get("description") or None,
+        )
+        if checked:
+            picked_needs.append(need["id"])
+    picked_needs = _resolve_exclusive_needs(picked_needs)
+    st.session_state.accessibility_needs = picked_needs
+    is_deaf_hoh = "deaf_hoh" in picked_needs
+
+    st.divider()
+    st.subheader("Communication mode")
+    if is_deaf_hoh:
+        st.info(
+            ":material/info: Since you're Deaf or hard of hearing, live captions stay on for any "
+            "spoken output regardless of mode.",
+            icon=None,
+        )
+    mode_labels = [m["label"] for m in COMMUNICATION_MODES]
+    mode_captions = [m["description"] for m in COMMUNICATION_MODES]
+    current_mode_id = st.session_state.get("communication_mode", "text")
+    current_mode_label = next(
+        (m["label"] for m in COMMUNICATION_MODES if m["id"] == current_mode_id),
+        mode_labels[0],
+    )
+    selected_mode_label = st.radio(
+        "Would you prefer voice-only, text-only, or both?",
+        mode_labels,
+        index=mode_labels.index(current_mode_label),
+        captions=mode_captions,
+        key="settings_comm_mode",
+    )
+    selected_mode_id = next(m["id"] for m in COMMUNICATION_MODES if m["label"] == selected_mode_label)
+    st.session_state.communication_mode = selected_mode_id
+    st.session_state.voice_enabled = selected_mode_id in ("voice", "both")
+
+    if selected_mode_id in ("voice", "both"):
+        st.session_state.captions_enabled = st.toggle(
+            ":material/closed_caption: Live visual transcript for spoken responses",
+            value=st.session_state.get("captions_enabled", True) or is_deaf_hoh,
+            disabled=is_deaf_hoh,
+            key="settings_captions",
+        )
+
+    st.divider()
     st.subheader("Display preferences")
     st.caption("Changes take effect immediately — no save button needed.")
 
@@ -140,6 +208,12 @@ def _render_accessibility() -> None:
             ":material/motion_photos_off: Reduce motion",
             key="reduced_motion",
         )
+
+    st.toggle(
+        ":material/short_text: Use shorter sentences & simpler structure in AI responses",
+        key="simplified_language",
+        help="Breaks answers into small steps, avoids idioms and jargon, and keeps one idea per sentence.",
+    )
 
     st.caption(":material/check_circle: Settings applied — you'll see the effect on your next interaction.")
 

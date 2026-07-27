@@ -123,6 +123,64 @@ AGE_RANGES: list[str] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Accessibility & communication preferences
+# ---------------------------------------------------------------------------
+
+ACCESSIBILITY_NEEDS: list[dict] = [
+    {
+        "id": "deaf_hoh",
+        "label": "Deaf or hard of hearing",
+        "icon": ":material/hearing_disabled:",
+        "description": "Text and captions stay primary; spoken output is never the only way information is given.",
+    },
+    {
+        "id": "low_vision",
+        "label": "Low vision or blind",
+        "icon": ":material/visibility:",
+        "description": "Larger text, higher contrast, and structure that doesn't depend on colour or icons alone.",
+    },
+    {
+        "id": "cognitive",
+        "label": "Cognitive accessibility (e.g., ADHD, dyslexia, memory or focus differences)",
+        "icon": ":material/psychology_alt:",
+        "description": "Shorter sentences, one idea at a time, and less visual clutter.",
+    },
+    {
+        "id": "none",
+        "label": "None of these apply",
+        "icon": ":material/check_circle:",
+        "description": "",
+    },
+    {
+        "id": "prefer_not_say",
+        "label": "Prefer not to say",
+        "icon": ":material/lock:",
+        "description": "",
+    },
+]
+
+COMMUNICATION_MODES: list[dict] = [
+    {
+        "id": "text",
+        "label": "Text only",
+        "icon": ":material/chat:",
+        "description": "Type and read — no audio.",
+    },
+    {
+        "id": "voice",
+        "label": "Voice only",
+        "icon": ":material/record_voice_over:",
+        "description": "Speak your questions and hear responses read aloud, with a live visual transcript.",
+    },
+    {
+        "id": "both",
+        "label": "Text and voice",
+        "icon": ":material/forum:",
+        "description": "Use whichever feels right, message to message.",
+    },
+]
+
+# ---------------------------------------------------------------------------
 # Localized financial guidance snippets
 # ---------------------------------------------------------------------------
 
