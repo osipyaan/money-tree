@@ -327,11 +327,24 @@ def _inject_theme_css() -> None:
     if st.session_state.get("high_contrast"):
         st.html("""
         <style>
+        [data-testid="stApp"],
+        [data-testid="stHeader"],
+        [data-testid="stBottom"],
+        [data-testid="stBottomBlockContainer"],
         [data-testid="stAppViewContainer"],
         [data-testid="stAppViewBlockContainer"],
         section[data-testid="stSidebar"],
         [data-testid="stSidebarContent"],
         .stChatMessage { background: #000000 !important; }
+
+        /* The chat input's pill-shaped wrapper keeps the theme's light
+           "secondary background" colour (from .streamlit/config.toml) even
+           though the textarea inside it is already repainted dark below —
+           leaving a jarring light bar around dark text. */
+        [data-testid="stChatInput"],
+        [data-testid="stChatInput"] * {
+            background: #111111 !important;
+        }
 
         [data-testid="stMarkdownContainer"],
         [data-testid="stMarkdownContainer"] *,

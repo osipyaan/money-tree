@@ -13,7 +13,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 from core import state, ai
 from core.data import (
     COUNTRIES, LANGUAGES, LIFE_STAGES, PRESET_GOALS, AGE_RANGES, get_country_name,
-    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES,
+    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES, default_speech_lang,
 )
 
 _EXCLUSIVE_NEEDS = {"none", "prefer_not_say"}
@@ -190,27 +190,36 @@ def _render_accessibility() -> None:
     st.caption("Changes take effect immediately — no save button needed.")
 
     with st.container(border=True):
-        # Each toggle writes directly to session state via on_change callback
+        # Explicit value= is required here: a key-only toggle never visually
+        # renders as checked on its first appearance even when the underlying
+        # session_state value is already True (e.g. set by defaults or by
+        # onboarding), which also makes the widget unreliable to click since
+        # there's no visual feedback of its real state.
         acc = st.toggle(
             ":material/text_increase: Accessibility-first mode",
+            value=st.session_state.get("accessibility_mode", False),
             key="accessibility_mode",
             help="Enables large text, simplified layouts, and high-contrast styling.",
         )
         hc = st.toggle(
             ":material/contrast: High contrast",
+            value=st.session_state.get("high_contrast", False),
             key="high_contrast",
         )
         lt = st.toggle(
             ":material/format_size: Large text (19px+)",
+            value=st.session_state.get("large_text", False),
             key="large_text",
         )
         rm = st.toggle(
             ":material/motion_photos_off: Reduce motion",
+            value=st.session_state.get("reduced_motion", True),
             key="reduced_motion",
         )
 
     st.toggle(
         ":material/short_text: Use shorter sentences & simpler structure in AI responses",
+        value=st.session_state.get("simplified_language", False),
         key="simplified_language",
         help="Breaks answers into small steps, avoids idioms and jargon, and keeps one idea per sentence.",
     )
@@ -335,6 +344,7 @@ def _render_profile() -> None:
         st.session_state.profile_name = new_name.strip()
         st.session_state.profile_country = new_country_code
         st.session_state.profile_language = new_lang_code
+        st.session_state.speech_lang = default_speech_lang(new_lang_code)
         st.session_state.profile_life_stage = new_stage_id
         st.session_state.profile_age_range = age
         st.session_state.profile_goals = selected_goals[:3]
@@ -413,10 +423,16 @@ def _render_integrations() -> None:
 
     st.divider()
     st.subheader("Voice & speech settings")
+    speech_lang_options = [
+        "en-US", "en-GB", "es-ES", "fr-FR", "hi-IN", "pt-BR", "ar-SA", "sw-KE", "de-DE", "ja-JP", "zh-CN",
+    ]
+    current_speech_lang = st.session_state.get("speech_lang", "en-US")
     speech_lang = st.selectbox(
         "Speech recognition language code",
-        ["en-US", "en-GB", "es-ES", "fr-FR", "hi-IN", "pt-BR", "ar-SA", "sw-KE", "de-DE", "ja-JP", "zh-CN"],
-        index=0,
+        speech_lang_options,
+        index=speech_lang_options.index(current_speech_lang) if current_speech_lang in speech_lang_options else 0,
+        help="Defaults to match your profile language — change this if you speak to Money Tree in a "
+             "different language than you read it in.",
     )
     st.session_state.speech_lang = speech_lang
     st.caption("This controls the STT language. Text responses and TTS use your profile language setting.")

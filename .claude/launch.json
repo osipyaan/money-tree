@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "finwise-streamlit",
-      "runtimeExecutable": "streamlit",
+      "runtimeExecutable": ".venv/Scripts/streamlit.exe",
       "runtimeArgs": ["run", "streamlit_app.py", "--server.headless", "true", "--server.port", "8532"],
       "port": 8532
     }

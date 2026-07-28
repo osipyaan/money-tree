@@ -21,7 +21,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 from core import state
 from core.data import (
     COUNTRIES, LANGUAGES, LIFE_STAGES, PRESET_GOALS, AGE_RANGES,
-    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES,
+    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES, default_speech_lang,
 )
 
 _EXCLUSIVE_NEEDS = {"none", "prefer_not_say"}
@@ -153,6 +153,7 @@ def render() -> None:
             st.session_state.profile_name = first_name.strip()
             st.session_state.profile_country = selected_country_code
             st.session_state.profile_language = selected_lang_code
+            st.session_state.speech_lang = default_speech_lang(selected_lang_code)
             st.session_state.profile_age_range = age
             st.session_state.onboarding_step = 2
             st.rerun()
@@ -319,6 +320,7 @@ def render() -> None:
             index=mode_labels.index(current_mode_label),
             captions=mode_captions,
             label_visibility="collapsed",
+            key="onb_comm_mode",
         )
         selected_mode_id = next(
             m["id"] for m in COMMUNICATION_MODES if m["label"] == selected_mode_label
@@ -331,6 +333,7 @@ def render() -> None:
                 value=captions_enabled or is_deaf_hoh,
                 disabled=is_deaf_hoh,
                 help="Lets you follow spoken responses in real time as text — recommended for everyone.",
+                key="onb_captions",
             )
 
         st.divider()
@@ -340,25 +343,30 @@ def render() -> None:
                 ":material/text_increase: Accessibility-first mode",
                 value=st.session_state.accessibility_mode or is_low_vision,
                 help="Enables large text, simplified layouts, and higher-contrast colours.",
+                key="onb_accessibility_mode",
             )
             hc = st.toggle(
                 ":material/contrast: High contrast",
                 value=st.session_state.high_contrast or is_low_vision,
+                key="onb_high_contrast",
             )
             lt = st.toggle(
                 ":material/format_size: Large text",
                 value=st.session_state.large_text or is_low_vision,
+                key="onb_large_text",
             )
             rm = st.toggle(
                 ":material/motion_photos_off: Reduce motion",
                 value=st.session_state.reduced_motion,
                 help="Disables animations and transitions.",
+                key="onb_reduced_motion",
             )
 
         simplified = st.toggle(
             ":material/short_text: Use shorter sentences & simpler structure in AI responses",
             value=st.session_state.get("simplified_language", False) or is_cognitive,
             help="Breaks answers into small steps, avoids idioms and jargon, and keeps one idea per sentence.",
+            key="onb_simplified_language",
         )
 
         st.divider()

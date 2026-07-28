@@ -1,5 +1,10 @@
 # Money Tree — AI Financial Literacy Assistant
 # Core Streamlit dependency is already in the environment.
+#
+# Recommended: install into a project-local virtual environment (.venv), not
+# your global Python. gTTS pins click<8.2, which can conflict with other
+# tools (e.g. huggingface-hub, typer) that need a newer click if installed
+# globally.
 
 # Loads OPENAI_API_KEY (and other secrets) from a local .env file — never commit .env itself.
 python-dotenv>=1.0.0
@@ -9,11 +14,11 @@ python-dotenv>=1.0.0
 # Enables AI-powered responses (requires OPENAI_API_KEY env var, set via .env):
 openai>=1.0.0
 
-# Uncomment to enable voice input (speech-to-text):
-# SpeechRecognition>=3.10.0
+# Voice input (speech-to-text):
+SpeechRecognition>=3.10.0
 
-# Uncomment to enable voice output (text-to-speech):
-# gTTS>=2.5.0
+# Voice output (text-to-speech):
+gTTS>=2.5.0
 
 # Uncomment for on-device encryption of stored data:
 # cryptography>=42.0.0
