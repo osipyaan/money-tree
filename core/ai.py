@@ -16,6 +16,11 @@ import textwrap
 from itertools import zip_longest
 from typing import Iterator
 
+# Splits a response into its reasoning and final-answer halves. Used both in
+# the system prompt (telling the model where to put the delimiter) and by
+# split_reasoning() below (parsing it back out for display/history/TTS).
+ANSWER_DELIM = "\n---ANSWER---\n"
+
 # ---------------------------------------------------------------------------
 # Provider availability detection
 # ---------------------------------------------------------------------------
@@ -100,6 +105,7 @@ def build_system_prompt(
     accessibility_block = _build_accessibility_guidelines(
         accessibility_needs or [], simplified_language, communication_mode
     )
+    answer_delim_marker = ANSWER_DELIM.strip()
     return textwrap.dedent(f"""
         You are Money Tree, an AI-powered financial literacy assistant designed specifically
         for women worldwide. Your mission: help users build genuine financial confidence,
@@ -147,6 +153,16 @@ def build_system_prompt(
             "Are you interested in learning more about [specific topic] for {life_stage}s in {country}?"
             or "Would it help to walk through [specific next step] together?"
             Keep it to one short sentence at the end, set apart on its own line.
+
+        CHAIN-OF-THOUGHT FORMAT (structural — always follow this exactly)
+        ────────────────────────────────────────────────────────────────
+        First, think through the question in 2-4 short bullet points: what's actually
+        being asked, what context about this user matters, and what the key trade-offs
+        or considerations are. This reasoning is shown to the user as an optional,
+        collapsed "how I thought about this" section, so it can be brief and informal.
+        Then write a line containing exactly: {answer_delim_marker}
+        Then give your final answer, following every guideline above. Never skip the
+        marker line, and never put it anywhere except between the reasoning and the answer.
     """).strip()
 
 
@@ -155,19 +171,40 @@ def generate_response(
     conversation_history: list[dict],
     system_prompt: str,
     stream: bool = False,
+    country: str = "",
+    life_stage: str = "",
+    knowledge_level: str = "beginner",
 ) -> str | Iterator[str]:
     """
-    Generate an AI response.
+    Generate an AI response, formatted as reasoning + ANSWER_DELIM + final answer
+    (see split_reasoning()) so the caller can show the reasoning separately.
 
     Provider priority:
-    1. OpenAI (if openai package installed and OPENAI_API_KEY set)
-    2. Demo / offline mode (keyword-based from data.py)
+    1. OpenAI (if openai package installed and OPENAI_API_KEY set) — asked to
+       follow the chain-of-thought format via the system prompt.
+    2. Demo / offline mode (keyword-based from data.py) — reasoning is
+       synthesized from the classified topic and user context, since there's
+       no real model to think out loud.
 
     Returns a plain string (or a generator when stream=True and OpenAI is active).
     """
     if HAS_OPENAI and os.environ.get("OPENAI_API_KEY"):
         return _openai_response(user_message, conversation_history, system_prompt, stream)
-    return _demo_response(user_message)
+    return _demo_response(user_message, country, life_stage, knowledge_level)
+
+
+def split_reasoning(response: str) -> tuple[str, str]:
+    """
+    Split a generate_response() result into (reasoning, answer). If the
+    delimiter is missing (e.g. an older stored message, or a provider that
+    ignored the format instruction), reasoning is empty and the whole text
+    is treated as the answer.
+    """
+    marker = ANSWER_DELIM.strip()
+    if marker in response:
+        reasoning, answer = response.split(marker, 1)
+        return reasoning.strip(), answer.strip()
+    return "", response.strip()
 
 
 def _openai_response(
@@ -204,10 +241,43 @@ def _openai_response(
     return resp.choices[0].message.content
 
 
-def _demo_response(user_message: str) -> str:
+_TOPIC_LABELS: dict[str, str] = {
+    "greeting": "a general opening or introduction",
+    "emergency_fund": "building an emergency fund",
+    "investing": "investing or a specific investment/retirement account",
+    "budget": "budgeting",
+    "debt": "a debt payoff strategy",
+    "scam": "scam awareness",
+    "default": "a question that doesn't match a specific preset topic",
+}
+
+
+def _demo_reasoning(key: str, country: str, life_stage: str, knowledge_level: str) -> str:
+    context_bits = [f"knowledge level ({knowledge_level})"]
+    if life_stage:
+        context_bits.insert(0, f"life stage ({life_stage})")
+    if country:
+        context_bits.insert(0, f"country ({country})")
+    return (
+        f"- This looks like it's about {_TOPIC_LABELS.get(key, _TOPIC_LABELS['default'])}.\n"
+        f"- Tailoring this using your {', '.join(context_bits)}.\n"
+        "- No live AI model is connected right now, so this is a matched general-guidance "
+        "response rather than one written for your exact wording — it may not capture every "
+        "detail of your question."
+    )
+
+
+def _demo_response(
+    user_message: str,
+    country: str = "",
+    life_stage: str = "",
+    knowledge_level: str = "beginner",
+) -> str:
     from core.data import classify_query, DEMO_RESPONSES
     key = classify_query(user_message)
-    return DEMO_RESPONSES.get(key, DEMO_RESPONSES["default"])
+    answer = DEMO_RESPONSES.get(key, DEMO_RESPONSES["default"])
+    reasoning = _demo_reasoning(key, country, life_stage, knowledge_level)
+    return reasoning + ANSWER_DELIM + answer
 
 
 # ---------------------------------------------------------------------------
