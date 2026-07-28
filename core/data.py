@@ -42,6 +42,28 @@ LANGUAGES: list[dict] = [
     {"code": "zh", "name": "中文 (Chinese)"},
 ]
 
+# Maps a profile language code to the closest Google STT locale, so voice
+# input listens in the same language the user reads/hears responses in by
+# default. Languages without a natural single-country locale (Yoruba,
+# Tagalog) fall back to English recognition.
+SPEECH_LANG_BY_LANGUAGE: dict[str, str] = {
+    "en": "en-US",
+    "es": "es-ES",
+    "fr": "fr-FR",
+    "pt": "pt-BR",
+    "hi": "hi-IN",
+    "ar": "ar-SA",
+    "sw": "sw-KE",
+    "de": "de-DE",
+    "ja": "ja-JP",
+    "zh": "zh-CN",
+}
+
+
+def default_speech_lang(language_code: str) -> str:
+    return SPEECH_LANG_BY_LANGUAGE.get(language_code, "en-US")
+
+
 LIFE_STAGES: list[dict] = [
     {
         "id": "student",
@@ -548,18 +570,42 @@ def _has_any_word(lower_text: str, words: list[str]) -> bool:
 
 
 def classify_query(text: str) -> str:
-    """Naive keyword classifier used when no LLM is available."""
+    """
+    Naive keyword classifier used when no LLM is available.
+
+    Specific-topic checks run before the greeting fallback, and the greeting
+    list is limited to words that are almost never part of a real financial
+    question. Previously "start"/"begin" were classified as greetings and
+    checked first, so anything like "how do I start a TFSA" or "start
+    investing" was misclassified as a hello — those words are far too common
+    in genuine questions to be a reliable greeting signal.
+    """
     lower = text.lower()
-    if _has_any_word(lower, ["hello", "hi", "hey", "start", "begin"]):
-        return "greeting"
-    if _has_any_word(lower, ["emergency", "rainy day", "cushion", "safety net"]):
+    if _has_any_word(lower, ["emergency", "emergencies", "rainy day", "cushion", "safety net"]):
         return "emergency_fund"
-    if _has_any_word(lower, ["invest", "investing", "stock", "fund", "etf", "portfolio", "index", "equity"]):
+    if _has_any_word(lower, [
+        "invest", "investing", "investment", "investments", "stock", "stocks", "fund", "funds",
+        "etf", "etfs", "portfolio", "index fund", "index funds", "equity", "equities",
+        "tfsa", "rrsp", "isa", "ppf", "nps", "elss", "401k", "401(k)", "ira",
+        "retirement account", "retirement accounts", "savings account", "savings accounts",
+        "mutual fund", "mutual funds",
+    ]):
         return "investing"
-    if _has_any_word(lower, ["budget", "spending", "track", "50/30", "money plan"]):
+    if _has_any_word(lower, [
+        "budget", "budgets", "budgeting", "budgeted", "spending", "track spending",
+        "tracking spending", "50/30", "money plan", "money plans",
+    ]):
         return "budget"
-    if _has_any_word(lower, ["debt", "loan", "credit card", "owe", "repay", "payoff", "snowball", "avalanche"]):
+    if _has_any_word(lower, [
+        "debt", "debts", "loan", "loans", "credit card", "credit cards", "owe", "owing",
+        "repay", "repaying", "payoff", "pay off", "snowball", "avalanche",
+    ]):
         return "debt"
-    if _has_any_word(lower, ["scam", "fraud", "phishing", "suspicious", "fake", "too good"]):
+    if _has_any_word(lower, [
+        "scam", "scams", "scammed", "fraud", "fraudulent", "phishing", "suspicious", "fake",
+        "too good",
+    ]):
         return "scam"
+    if _has_any_word(lower, ["hello", "hi", "hey"]):
+        return "greeting"
     return "default"

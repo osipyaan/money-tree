@@ -67,11 +67,16 @@ def _build_system_prompt() -> str:
     )
 
 
-def _render_message(msg: dict, idx: int) -> None:
+def _render_message(msg: dict, idx: int, is_latest: bool = False) -> None:
     role = msg["role"]
     content = msg["content"]
     ts = msg.get("ts", "")
     msg_id = msg["id"]
+
+    # Assistant messages are stored as reasoning + ANSWER_DELIM + answer; only
+    # the answer is spoken/captioned/shown as the main bubble, with reasoning
+    # available in a collapsed expander for anyone curious how it got there.
+    reasoning, answer = ai.split_reasoning(content) if role == "assistant" else ("", content)
 
     # Synthesize speech up front (if applicable) so the text block below can be
     # explicitly labelled as the live transcript of that audio, rather than a
@@ -79,17 +84,26 @@ def _render_message(msg: dict, idx: int) -> None:
     audio_bytes = None
     if role == "assistant" and st.session_state.get("voice_enabled"):
         audio_bytes = ai.synthesize_speech(
-            content[:600],
+            answer[:600],
             language=st.session_state.get("profile_language", "en"),
         )
     show_captions = audio_bytes and st.session_state.get("captions_enabled", True)
+    # Only auto-play the newest reply — replaying every past message on every
+    # rerun (e.g. deleting an unrelated message) would talk over the user.
+    already_played = st.session_state.get("_last_autoplayed_msg_id") == msg_id
+    autoplay = bool(audio_bytes) and is_latest and not already_played
+    if autoplay:
+        st.session_state["_last_autoplayed_msg_id"] = msg_id
 
     with st.chat_message(role, avatar=":material/auto_awesome:" if role == "assistant" else ":material/person:"):
         col_text, col_del = st.columns([12, 1])
         with col_text:
+            if reasoning:
+                with st.expander(":material/psychology: How I thought about this"):
+                    st.markdown(reasoning)
             if show_captions:
                 st.caption(":material/closed_caption: Live transcript of spoken response")
-            st.markdown(content)
+            st.markdown(answer)
             if ts:
                 try:
                     dt = datetime.datetime.fromisoformat(ts)
@@ -107,7 +121,7 @@ def _render_message(msg: dict, idx: int) -> None:
 
         # TTS playback if speech synthesis available and voice enabled
         if audio_bytes:
-            st.audio(audio_bytes, format="audio/mp3", autoplay=False)
+            st.audio(audio_bytes, format="audio/mp3", autoplay=autoplay)
 
 
 # ---------------------------------------------------------------------------
@@ -153,8 +167,9 @@ def render() -> None:
             st.markdown("• Identify financial scams and protect yourself")
             st.markdown("• Understand local tax and retirement options")
     else:
+        last_idx = len(messages) - 1
         for i, msg in enumerate(messages):
-            _render_message(msg, i)
+            _render_message(msg, i, is_latest=(i == last_idx))
 
     # Suggestion chips (shown when history is empty or short)
     if len(messages) < 2:
@@ -187,23 +202,50 @@ def _render_input_area() -> None:
     col_voice, col_input = st.columns([1, 6])
     with col_voice:
         if voice_available:
-            new_voice = st.toggle(
+            # Reassign voice_enabled itself (not a separate new_voice var) so
+            # the check below sees this click immediately — otherwise the
+            # first click that turns voice on still reads the stale
+            # pre-click value and the recorder doesn't appear until some
+            # later, unrelated rerun.
+            voice_enabled = st.toggle(
                 ":material/mic:",
                 value=voice_enabled,
                 help="Enable voice input and spoken responses",
             )
-            st.session_state.voice_enabled = new_voice
+            st.session_state.voice_enabled = voice_enabled
         else:
             st.caption(":material/mic_off:")
 
     with col_input:
         # Voice upload fallback (browser mic not directly accessible in Streamlit)
         if voice_enabled and voice_available:
+            st.caption(":material/mic: Press on the button to record your question")
+            st.html("""
+            <style>
+            [data-testid="stAudioInputActionButton"] {
+                width: 2.75rem !important;
+                height: 2.75rem !important;
+            }
+            [data-testid="stAudioInputActionButton"] svg {
+                width: 1.9rem !important;
+                height: 1.9rem !important;
+            }
+            </style>
+            """)
             audio_val = st.audio_input(
                 "Speak your question",
                 label_visibility="collapsed",
             )
-            if audio_val is not None:
+            # st.audio_input keeps returning the same recording on every rerun
+            # until a new one is made — without this guard, the transcript
+            # would be resubmitted on every future interaction (deleting an
+            # unrelated message, toggling a setting, anything that reruns the
+            # script), since nothing else ever clears it.
+            already_heard = audio_val is not None and (
+                audio_val.file_id == st.session_state.get("_last_voice_file_id")
+            )
+            if audio_val is not None and not already_heard:
+                st.session_state["_last_voice_file_id"] = audio_val.file_id
                 audio_bytes = audio_val.getvalue()
                 with st.spinner("Transcribing…"):
                     lang = st.session_state.get("speech_lang", "en-US")
@@ -235,13 +277,21 @@ def _process_input(text: str) -> None:
     system_prompt = _build_system_prompt()
     all_msgs = state.visible_messages()
     if st.session_state.get("history_consent", False):
-        # Pass the last 10 turns excluding the message we just added (last item)
-        history = [
-            {"role": m["role"], "content": m["content"]}
-            for m in all_msgs[:-1][-10:]
-        ]
+        # Pass the last 10 turns excluding the message we just added (last item).
+        # Assistant turns are stripped down to their answer — the reasoning
+        # was for this UI's display, not useful (or cheap) as model context.
+        history = []
+        for m in all_msgs[:-1][-10:]:
+            msg_content = m["content"]
+            if m["role"] == "assistant":
+                _, msg_content = ai.split_reasoning(msg_content)
+            history.append({"role": m["role"], "content": msg_content})
     else:
         history = []
+
+    country = st.session_state.get("profile_country", "US")
+    life_stage = _get_life_stage_label()
+    knowledge = st.session_state.get("knowledge_level", "beginner")
 
     # Generate response
     with st.spinner("Thinking…"):
@@ -250,13 +300,15 @@ def _process_input(text: str) -> None:
             conversation_history=history,
             system_prompt=system_prompt,
             stream=False,
+            country=get_country_name(country),
+            life_stage=life_stage,
+            knowledge_level=knowledge,
         )
         # Handle iterator (streaming) case — consume it
         if hasattr(response, "__iter__") and not isinstance(response, str):
             response = "".join(response)
 
     # Add disclaimer when applicable
-    knowledge = st.session_state.get("knowledge_level", "beginner")
     if any(w in text.lower() for w in ["invest", "tax", "retire", "pension", "legal", "advice"]):
         response += (
             "\n\n---\n*⚠️ This is financial education, not personalised advice. "

@@ -21,7 +21,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 from core import state
 from core.data import (
     COUNTRIES, LANGUAGES, LIFE_STAGES, PRESET_GOALS, AGE_RANGES,
-    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES,
+    ACCESSIBILITY_NEEDS, COMMUNICATION_MODES, default_speech_lang,
 )
 
 _EXCLUSIVE_NEEDS = {"none", "prefer_not_say"}
@@ -153,6 +153,7 @@ def render() -> None:
             st.session_state.profile_name = first_name.strip()
             st.session_state.profile_country = selected_country_code
             st.session_state.profile_language = selected_lang_code
+            st.session_state.speech_lang = default_speech_lang(selected_lang_code)
             st.session_state.profile_age_range = age
             st.session_state.onboarding_step = 2
             st.rerun()
