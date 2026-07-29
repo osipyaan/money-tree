@@ -23,6 +23,8 @@ except ImportError:
 
 import streamlit as st
 from core import state
+# Aliased to `tr` — this file uses `t` extensively as the local theme-dict variable.
+from core.i18n import t as tr
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -459,28 +461,28 @@ if not st.session_state.get("onboarding_complete"):
 # ── Main navigation ───────────────────────────────────────────────────────────
 pg_assistant = st.Page(
     "app_pages/assistant.py",
-    title="AI Assistant",
+    title=tr("AI Assistant"),
     icon=":material/auto_awesome:",
     default=True,
 )
 pg_education = st.Page(
     "app_pages/education.py",
-    title="Learn",
+    title=tr("Learn"),
     icon=":material/library_books:",
 )
 pg_news = st.Page(
     "app_pages/news.py",
-    title="News",
+    title=tr("News"),
     icon=":material/newspaper:",
 )
 pg_budgeting = st.Page(
     "app_pages/budgeting.py",
-    title="Budget & Goals",
+    title=tr("Budget & Goals"),
     icon=":material/account_balance_wallet:",
 )
 pg_settings = st.Page(
     "app_pages/settings.py",
-    title="Settings",
+    title=tr("Settings"),
     icon=":material/settings:",
 )
 
@@ -507,8 +509,8 @@ with st.sidebar:
         f"background:repeating-linear-gradient(135deg, {t['surface']} 0 16px, {t['bg']} 16px 32px); "
         f"box-shadow:0 2px 10px rgba(0,0,0,0.07); border:1px solid {t['border']};'>"
         f"<span style='font-size:2rem'>🌳</span> "
-        f"<strong style=\"font-size:1.25rem; font-family:'Baloo 2','Quicksand',{_ff}; color:{t['text']}\">Money Tree</strong><br>"
-        f"<span style='font-size:0.75rem; color:{_muted}'>✨ Financial guide for women ✨</span>"
+        f"<strong style=\"font-size:1.25rem; font-family:'Baloo 2','Quicksand',{_ff}; color:{t['text']}\">{tr('Money Tree')}</strong><br>"
+        f"<span style='font-size:0.75rem; color:{_muted}'>{tr('✨ Financial guide for women ✨')}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -519,41 +521,43 @@ with st.sidebar:
     _stage_id = st.session_state.get("profile_life_stage", "early_career")
     _stage_label = next((ls["label"] for ls in LIFE_STAGES if ls["id"] == _stage_id), _stage_id)
 
-    _cur_page = pg.title if hasattr(pg, "title") else ""
-    if _cur_page == "Learn":
-        _greeting_suffix = "ready to learn more? 📚"
-    elif _cur_page == "News":
-        _greeting_suffix = "here's what's happening in finance 📰"
-    elif _cur_page == "AI Assistant":
-        _greeting_suffix = "ready to take your financial goals further? 💜"
-    elif _cur_page == "Budget & Goals":
-        _greeting_suffix = "let's check in on your goals 🎯"
+    # Compare by page object identity, not by title text — page titles are
+    # translated above, so comparing against hardcoded English strings would
+    # silently break this once profile_language isn't English.
+    if pg == pg_education:
+        _greeting_suffix = tr("ready to learn more? 📚")
+    elif pg == pg_news:
+        _greeting_suffix = tr("here's what's happening in finance 📰")
+    elif pg == pg_assistant:
+        _greeting_suffix = tr("ready to take your financial goals further? 💜")
+    elif pg == pg_budgeting:
+        _greeting_suffix = tr("let's check in on your goals 🎯")
     else:
-        _greeting_suffix = "great to see you 👋"
+        _greeting_suffix = tr("great to see you 👋")
 
     if _name:
-        st.markdown(f"**Hi {_name},** {_greeting_suffix}")
+        st.markdown(tr("**Hi {name},** {suffix}").format(name=_name, suffix=_greeting_suffix))
     else:
-        st.markdown(f"**Welcome back —** {_greeting_suffix}")
+        st.markdown(tr("**Welcome back —** {suffix}").format(suffix=_greeting_suffix))
 
-    st.caption(f":material/place: {get_country_name(_country)}  ·  {_stage_label}")
+    st.caption(f":material/place: {get_country_name(_country)}  ·  {tr(_stage_label)}")
 
     if st.session_state.get("privacy_mode"):
-        st.caption(":material/visibility_off: Privacy mode on")
+        st.caption(tr(":material/visibility_off: Privacy mode on"))
 
     # ── Theme switcher (inline, immediate) ───────────────────────────────────
     st.divider()
-    st.markdown("**🎨 Theme**")
+    st.markdown(f"**{tr('🎨 Theme')}**")
     theme_cols = st.columns(2)
     for idx, (tkey, tval) in enumerate(THEMES.items()):
         with theme_cols[idx % 2]:
             is_active = st.session_state.get("active_theme") == tkey
             if st.button(
-                tval["short_label"],
+                tr(tval["short_label"]),
                 key=f"theme_btn_{tkey}",
                 type="primary" if is_active else "secondary",
                 use_container_width=True,
-                help=tval["label"],
+                help=tr(tval["label"]),
             ):
                 st.session_state.active_theme = tkey
                 st.rerun()
@@ -562,21 +566,22 @@ with st.sidebar:
     st.divider()
     _regional = get_regional_content(_country)
     st.info(
-        f"**:material/security: Scam watch — {get_country_name(_country)}:**\n\n"
-        f"{_regional.get('scam_alert', '')}",
+        tr("**:material/security: Scam watch — {country}:**\n\n{alert}").format(
+            country=get_country_name(_country), alert=_regional.get("scam_alert", "")
+        ),
         icon=None,
     )
 
     # ── AI provider status ────────────────────────────────────────────────────
     st.divider()
     _caps = _ai.capability_report()
-    st.caption(f"🤖 **LLM:** {_caps['llm']}")
+    st.caption(tr("🤖 **LLM:** {value}").format(value=_caps["llm"]))
     if st.session_state.get("voice_enabled"):
-        st.caption(f"🎙️ **STT:** {_caps['stt']}")
-        st.caption(f"🔊 **TTS:** {_caps['tts']}")
+        st.caption(tr("🎙️ **STT:** {value}").format(value=_caps["stt"]))
+        st.caption(tr("🔊 **TTS:** {value}").format(value=_caps["tts"]))
 
     st.divider()
-    if st.button(":material/delete_forever: Clear chat history", type="secondary", key="global_clear_history"):
+    if st.button(tr(":material/delete_forever: Clear chat history"), type="secondary", key="global_clear_history"):
         from core.state import clear_all_history
         clear_all_history()
         st.rerun()
@@ -585,12 +590,15 @@ pg.run()
 
 # ── Persistent footer ─────────────────────────────────────────────────────────
 t = THEMES.get(st.session_state.get("active_theme", "purple"), THEMES["purple"])
+_footer_text = tr(
+    "Money Tree provides financial education only — not personalised financial advice.<br>"
+    "Always consult a qualified professional for decisions specific to your situation and jurisdiction.<br><br>"
+    "<em>Made with IBM Bob</em>"
+)
 st.html(f"""
 <div style="text-align:center;color:{t['muted']};font-size:0.72rem;
             border-top:1px solid {t['border']};margin-top:3rem;padding-top:0.75rem;
             font-family:{t['font_family']}">
-  Money Tree provides financial education only — not personalised financial advice.<br>
-  Always consult a qualified professional for decisions specific to your situation and jurisdiction.<br><br>
-  <em>Made with IBM Bob</em>
+  {_footer_text}
 </div>
 """)

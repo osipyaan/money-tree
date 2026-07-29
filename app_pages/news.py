@@ -13,6 +13,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent.parent))
 
 from core import state, ai
 from core.data import get_country_name, get_regional_content, LIFE_STAGES, PRESET_GOALS
+from core.i18n import t
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -57,8 +58,9 @@ def _analyze_headline(title: str) -> str:
     return ai.analyze_headline(
         title=title,
         country=get_country_name(country),
-        life_stage=_get_life_stage_label(),
+        life_stage=t(_get_life_stage_label()),
         system_prompt=_build_system_prompt(),
+        language=st.session_state.get("profile_language", "en"),
     )
 
 
@@ -67,23 +69,23 @@ def render() -> None:
 
     country = st.session_state.get("profile_country", "IN")
 
-    st.title(":material/newspaper: Financial News")
+    st.title(t(":material/newspaper: Financial News"))
     st.caption(
-        f"Latest headlines relevant to {get_country_name(country)}. "
-        "Stories open in a new tab — always verify with official sources."
+        t("Latest headlines relevant to {country}. Stories open in a new tab — "
+          "always verify with official sources.").format(country=get_country_name(country))
     )
 
     col_refresh, col_country = st.columns([1, 3])
     with col_refresh:
-        if st.button(":material/refresh: Refresh", type="secondary"):
+        if st.button(t(":material/refresh: Refresh"), type="secondary"):
             _cached_news.clear()
             st.rerun()
     with col_country:
-        st.caption(f":material/place: Showing news for **{get_country_name(country)}**")
+        st.caption(t(":material/place: Showing news for **{country}**").format(country=get_country_name(country)))
 
     st.divider()
 
-    with st.spinner("Loading latest headlines…"):
+    with st.spinner(t("Loading latest headlines…")):
         news_items = _cached_news(country)
 
     if news_items:
@@ -98,25 +100,28 @@ def render() -> None:
                 analysis_key = f"news_analysis_{item['link']}"
                 cached_analysis = st.session_state.get(analysis_key)
                 if cached_analysis:
-                    st.info(f"**What this means for you:** {cached_analysis}", icon=":material/psychology:")
+                    st.info(
+                        t("**What this means for you:** {analysis}").format(analysis=cached_analysis),
+                        icon=":material/psychology:",
+                    )
                 elif st.button(
-                    "What does this mean for me?",
+                    t("What does this mean for me?"),
                     icon=":material/psychology:",
                     key=f"analyze_btn_{idx}",
                 ):
-                    with st.spinner("Analysing for your situation…"):
+                    with st.spinner(t("Analysing for your situation…")):
                         st.session_state[analysis_key] = _analyze_headline(item["title"])
                     st.rerun()
     else:
         st.info(
-            "Headlines unavailable right now — check your internet connection and try refreshing.",
+            t("Headlines unavailable right now — check your internet connection and try refreshing."),
             icon=":material/wifi_off:",
         )
 
     st.divider()
     st.caption(
-        "*Source: Google News RSS. Headlines are for awareness only and do not "
-        "constitute financial advice.*"
+        t("*Source: Google News RSS. Headlines are for awareness only and do not "
+          "constitute financial advice.*")
     )
 
 

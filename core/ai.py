@@ -174,6 +174,7 @@ def generate_response(
     country: str = "",
     life_stage: str = "",
     knowledge_level: str = "beginner",
+    language: str = "en",
 ) -> str | Iterator[str]:
     """
     Generate an AI response, formatted as reasoning + ANSWER_DELIM + final answer
@@ -181,16 +182,18 @@ def generate_response(
 
     Provider priority:
     1. OpenAI (if openai package installed and OPENAI_API_KEY set) — asked to
-       follow the chain-of-thought format via the system prompt.
+       follow the chain-of-thought format via the system prompt, which already
+       instructs it to respond in `language`.
     2. Demo / offline mode (keyword-based from data.py) — reasoning is
        synthesized from the classified topic and user context, since there's
-       no real model to think out loud.
+       no real model to think out loud. The canned answer and reasoning are
+       both translated into `language` via core.i18n.
 
     Returns a plain string (or a generator when stream=True and OpenAI is active).
     """
     if HAS_OPENAI and os.environ.get("OPENAI_API_KEY"):
         return _openai_response(user_message, conversation_history, system_prompt, stream)
-    return _demo_response(user_message, country, life_stage, knowledge_level)
+    return _demo_response(user_message, country, life_stage, knowledge_level, language)
 
 
 def split_reasoning(response: str) -> tuple[str, str]:
@@ -252,19 +255,24 @@ _TOPIC_LABELS: dict[str, str] = {
 }
 
 
-def _demo_reasoning(key: str, country: str, life_stage: str, knowledge_level: str) -> str:
-    context_bits = [f"knowledge level ({knowledge_level})"]
+def _demo_reasoning(key: str, country: str, life_stage: str, knowledge_level: str, language: str) -> str:
+    from core.i18n import t
+
+    context_bits = [t("knowledge level ({x})", lang=language).format(x=knowledge_level)]
     if life_stage:
-        context_bits.insert(0, f"life stage ({life_stage})")
+        context_bits.insert(0, t("life stage ({x})", lang=language).format(x=life_stage))
     if country:
-        context_bits.insert(0, f"country ({country})")
-    return (
-        f"- This looks like it's about {_TOPIC_LABELS.get(key, _TOPIC_LABELS['default'])}.\n"
-        f"- Tailoring this using your {', '.join(context_bits)}.\n"
+        context_bits.insert(0, t("country ({x})", lang=language).format(x=country))
+    topic = t(_TOPIC_LABELS.get(key, _TOPIC_LABELS["default"]), lang=language)
+    line1 = t("- This looks like it's about {topic}.", lang=language).format(topic=topic)
+    line2 = t("- Tailoring this using your {context}.", lang=language).format(context=", ".join(context_bits))
+    line3 = t(
         "- No live AI model is connected right now, so this is a matched general-guidance "
         "response rather than one written for your exact wording — it may not capture every "
-        "detail of your question."
+        "detail of your question.",
+        lang=language,
     )
+    return f"{line1}\n{line2}\n{line3}"
 
 
 def _demo_response(
@@ -272,11 +280,14 @@ def _demo_response(
     country: str = "",
     life_stage: str = "",
     knowledge_level: str = "beginner",
+    language: str = "en",
 ) -> str:
     from core.data import classify_query, DEMO_RESPONSES
+    from core.i18n import t
+
     key = classify_query(user_message)
-    answer = DEMO_RESPONSES.get(key, DEMO_RESPONSES["default"])
-    reasoning = _demo_reasoning(key, country, life_stage, knowledge_level)
+    answer = t(DEMO_RESPONSES.get(key, DEMO_RESPONSES["default"]), lang=language)
+    reasoning = _demo_reasoning(key, country, life_stage, knowledge_level, language)
     return reasoning + ANSWER_DELIM + answer
 
 
@@ -315,21 +326,25 @@ _HEADLINE_ANGLES: list[tuple[list[str], str]] = [
 ]
 
 
-def _demo_headline_analysis(title: str, country: str, life_stage: str) -> str:
+def _demo_headline_analysis(title: str, country: str, life_stage: str, language: str) -> str:
     """Headline-aware fallback used when no LLM is connected. Unlike the
     generic chat demo responses, this always references the actual headline."""
+    from core.i18n import t
+
     lower = title.lower()
-    angle = next(
+    angle_en = next(
         (text for keywords, text in _HEADLINE_ANGLES if any(k in lower for k in keywords)),
         "Broader economic news like this shapes the environment your financial decisions happen "
         "in, even when the link to your day-to-day finances isn't immediate.",
     )
-    return (
-        f"On \"{title}\": {angle} For someone in {country} at the {life_stage} stage, it's worth "
+    angle = t(angle_en, lang=language)
+    return t(
+        "On \"{title}\": {angle} For someone in {country} at the {life_stage} stage, it's worth "
         "keeping an eye on how this develops rather than reacting immediately.\n\n"
         "**One concrete takeaway:** revisit your budget or emergency fund this week to make sure "
-        "it still reflects your current situation."
-    )
+        "it still reflects your current situation.",
+        lang=language,
+    ).format(title=title, angle=angle, country=country, life_stage=life_stage)
 
 
 def analyze_headline(
@@ -337,18 +352,23 @@ def analyze_headline(
     country: str,
     life_stage: str,
     system_prompt: str,
+    language: str = "en",
 ) -> str:
     """
     Produce a short, headline-specific interpretation ("what does this mean for me?").
 
     Provider priority:
-    1. OpenAI (if configured) — asked directly about this specific headline.
+    1. OpenAI (if configured) — asked directly about this specific headline, via
+       a system prompt that already instructs it to respond in `language`.
     2. A headline-aware demo fallback that references the actual headline
        (not the generic 6-bucket chat classifier, which has no notion of
-       news content and was misclassifying every headline as a greeting).
+       news content and was misclassifying every headline as a greeting),
+       translated into `language` via core.i18n.
 
     Always ends with a reminder to check other sources, regardless of provider.
     """
+    from core.i18n import t
+
     if HAS_OPENAI and os.environ.get("OPENAI_API_KEY"):
         question = (
             f'A financial news headline just came up: "{title}". '
@@ -357,11 +377,12 @@ def analyze_headline(
         )
         analysis = _openai_response(question, [], system_prompt, stream=False)
     else:
-        analysis = _demo_headline_analysis(title, country, life_stage)
+        analysis = _demo_headline_analysis(title, country, life_stage, language)
 
-    return analysis + (
+    return analysis + t(
         "\n\n*This is one interpretation — seek out other news sources for different "
-        "perspectives on this story.*"
+        "perspectives on this story.*",
+        lang=language,
     )
 
 
