@@ -23,6 +23,7 @@ from core.data import (
     get_regional_content, get_country_name, get_currency,
     LIFE_STAGES, PRESET_GOALS, classify_query,
 )
+from core.i18n import t
 
 
 # ---------------------------------------------------------------------------
@@ -99,10 +100,10 @@ def _render_message(msg: dict, idx: int, is_latest: bool = False) -> None:
         col_text, col_del = st.columns([12, 1])
         with col_text:
             if reasoning:
-                with st.expander(":material/psychology: How I thought about this"):
+                with st.expander(t(":material/psychology: How I thought about this")):
                     st.markdown(reasoning)
             if show_captions:
-                st.caption(":material/closed_caption: Live transcript of spoken response")
+                st.caption(t(":material/closed_caption: Live transcript of spoken response"))
             st.markdown(answer)
             if ts:
                 try:
@@ -114,7 +115,7 @@ def _render_message(msg: dict, idx: int, is_latest: bool = False) -> None:
             if st.button(
                 ":material/delete:",
                 key=f"del_msg_{msg_id}",
-                help="Permanently delete this message",
+                help=t("Permanently delete this message"),
             ):
                 state.delete_message(msg_id)
                 st.rerun()
@@ -131,19 +132,19 @@ def _render_message(msg: dict, idx: int, is_latest: bool = False) -> None:
 def render() -> None:
     state.init()
 
-    st.title(":material/auto_awesome: Money Tree Assistant")
+    st.title(t(":material/auto_awesome: Money Tree Assistant"))
 
     # Privacy banner
     if st.session_state.get("privacy_mode"):
         st.info(
-            ":material/visibility_off: **Privacy mode is active.** Conversation history is not stored. "
-            "Responses appear here during this session only.",
+            t(":material/visibility_off: **Privacy mode is active.** Conversation history is not stored. "
+              "Responses appear here during this session only."),
             icon=None,
         )
     elif not st.session_state.get("history_consent"):
         st.warning(
-            ":material/info: Conversation history personalisation is off. Enable it in **Settings → Privacy** "
-            "to let Money Tree improve responses based on your history.",
+            t(":material/info: Conversation history personalisation is off. Enable it in **Settings → Privacy** "
+              "to let Money Tree improve responses based on your history."),
             icon=None,
         )
 
@@ -155,17 +156,19 @@ def render() -> None:
             country = st.session_state.get("profile_country", "US")
             life_stage = _get_life_stage_label()
             st.markdown(
-                f"👋 **Welcome back!** I'm Money Tree, your financial guide. "
-                f"Based on your profile as a **{life_stage}** in **{get_country_name(country)}**, "
-                f"here are some things I can help you with:"
+                t("👋 **Welcome back!** I'm Money Tree, your financial guide. "
+                  "Based on your profile as a **{life_stage}** in **{country}**, "
+                  "here are some things I can help you with:").format(
+                    life_stage=t(life_stage), country=get_country_name(country)
+                )
             )
             goals = _get_goal_labels()
             if goals:
                 for g in goals:
-                    st.markdown(f"• Ask me about: *{g}*")
-            st.markdown("• Understand investing, budgeting, and debt strategies")
-            st.markdown("• Identify financial scams and protect yourself")
-            st.markdown("• Understand local tax and retirement options")
+                    st.markdown(t("• Ask me about: *{g}*").format(g=t(g)))
+            st.markdown(t("• Understand investing, budgeting, and debt strategies"))
+            st.markdown(t("• Identify financial scams and protect yourself"))
+            st.markdown(t("• Understand local tax and retirement options"))
     else:
         last_idx = len(messages) - 1
         for i, msg in enumerate(messages):
@@ -173,7 +176,7 @@ def render() -> None:
 
     # Suggestion chips (shown when history is empty or short)
     if len(messages) < 2:
-        st.markdown("**Quick questions to try:**")
+        st.markdown(t("**Quick questions to try:**"))
         suggestion_cols = st.columns(3)
         suggestions = [
             "How do I build an emergency fund?",
@@ -185,7 +188,7 @@ def render() -> None:
         ]
         for i, suggestion in enumerate(suggestions):
             with suggestion_cols[i % 3]:
-                if st.button(suggestion, key=f"sugg_{i}"):
+                if st.button(t(suggestion), key=f"sugg_{i}"):
                     _process_input(suggestion)
 
     st.divider()
@@ -210,7 +213,7 @@ def _render_input_area() -> None:
             voice_enabled = st.toggle(
                 ":material/mic:",
                 value=voice_enabled,
-                help="Enable voice input and spoken responses",
+                help=t("Enable voice input and spoken responses"),
             )
             st.session_state.voice_enabled = voice_enabled
         else:
@@ -219,7 +222,7 @@ def _render_input_area() -> None:
     with col_input:
         # Voice upload fallback (browser mic not directly accessible in Streamlit)
         if voice_enabled and voice_available:
-            st.caption(":material/mic: Press on the button to record your question")
+            st.caption(t(":material/mic: Press on the button to record your question"))
             st.html("""
             <style>
             [data-testid="stAudioInputActionButton"] {
@@ -233,7 +236,7 @@ def _render_input_area() -> None:
             </style>
             """)
             audio_val = st.audio_input(
-                "Speak your question",
+                t("Speak your question"),
                 label_visibility="collapsed",
             )
             # st.audio_input keeps returning the same recording on every rerun
@@ -247,21 +250,21 @@ def _render_input_area() -> None:
             if audio_val is not None and not already_heard:
                 st.session_state["_last_voice_file_id"] = audio_val.file_id
                 audio_bytes = audio_val.getvalue()
-                with st.spinner("Transcribing…"):
+                with st.spinner(t("Transcribing…")):
                     lang = st.session_state.get("speech_lang", "en-US")
                     transcript = ai.transcribe_audio(audio_bytes, language=lang)
                 if transcript:
-                    st.success(f"Heard: *{transcript}*")
+                    st.success(t("Heard: *{transcript}*").format(transcript=transcript))
                     _process_input(transcript)
                 else:
                     st.warning(
-                        "Could not transcribe audio. Please type your question below.",
+                        t("Could not transcribe audio. Please type your question below."),
                         icon=":material/warning:",
                     )
 
     # Always show text input
     user_input = st.chat_input(
-        "Ask me anything about your finances…",
+        t("Ask me anything about your finances…"),
         key="chat_input",
     )
     if user_input:
@@ -292,17 +295,19 @@ def _process_input(text: str) -> None:
     country = st.session_state.get("profile_country", "US")
     life_stage = _get_life_stage_label()
     knowledge = st.session_state.get("knowledge_level", "beginner")
+    language = st.session_state.get("profile_language", "en")
 
     # Generate response
-    with st.spinner("Thinking…"):
+    with st.spinner(t("Thinking…")):
         response = ai.generate_response(
             user_message=text,
             conversation_history=history,
             system_prompt=system_prompt,
             stream=False,
             country=get_country_name(country),
-            life_stage=life_stage,
+            life_stage=t(life_stage),
             knowledge_level=knowledge,
+            language=language,
         )
         # Handle iterator (streaming) case — consume it
         if hasattr(response, "__iter__") and not isinstance(response, str):
@@ -310,7 +315,7 @@ def _process_input(text: str) -> None:
 
     # Add disclaimer when applicable
     if any(w in text.lower() for w in ["invest", "tax", "retire", "pension", "legal", "advice"]):
-        response += (
+        response += t(
             "\n\n---\n*⚠️ This is financial education, not personalised advice. "
             "For decisions specific to your situation and jurisdiction, "
             "please consult a licensed financial professional.*"

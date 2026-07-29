@@ -20,20 +20,21 @@ from core import state
 from core.data import (
     EDUCATION_MODULES, get_regional_content, get_country_name,
 )
+from core.i18n import t
 
 
 def _level_badge(level: str) -> str:
     colours = {"Beginner": "#10b981", "Intermediate": "#f59e0b", "Advanced": "#ef4444"}
-    return f"<span style='background:{colours.get(level,'#7c3aed')};color:white;border-radius:4px;padding:2px 8px;font-size:0.72rem'>{level}</span>"
+    return f"<span style='background:{colours.get(level,'#7c3aed')};color:white;border-radius:4px;padding:2px 8px;font-size:0.72rem'>{t(level)}</span>"
 
 
 def render() -> None:
     state.init()
 
-    st.title(":material/library_books: Financial Education")
+    st.title(t(":material/library_books: Financial Education"))
     st.caption(
-        "Plain-language guides tailored to your life stage and goals. "
-        "All content distinguishes universal principles from country-specific guidance."
+        t("Plain-language guides tailored to your life stage and goals. "
+          "All content distinguishes universal principles from country-specific guidance.")
     )
 
     country = st.session_state.get("profile_country", "IN")
@@ -41,18 +42,18 @@ def render() -> None:
 
     # Regional context banner
     with st.container(border=True):
-        st.markdown(f"### :material/place: Guidance for {get_country_name(country)}")
+        st.markdown(t("### :material/place: Guidance for {country}").format(country=get_country_name(country)))
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f"**:material/account_balance: Tax & retirement:**\n\n{regional.get('tax_note','')}")
-            st.markdown(f"**:material/credit_score: Credit:**\n\n{regional.get('credit_note','')}")
+            st.markdown(t("**:material/account_balance: Tax & retirement:**\n\n{note}").format(note=regional.get("tax_note", "")))
+            st.markdown(t("**:material/credit_score: Credit:**\n\n{note}").format(note=regional.get("credit_note", "")))
         with col2:
-            st.markdown(f"**:material/elderly: Retirement programmes:**\n\n{regional.get('retirement_programs','')}")
-            st.error(f"**:material/security: Scam watch:**\n\n{regional.get('scam_alert','')}", icon=None)
+            st.markdown(t("**:material/elderly: Retirement programmes:**\n\n{note}").format(note=regional.get("retirement_programs", "")))
+            st.error(t("**:material/security: Scam watch:**\n\n{note}").format(note=regional.get("scam_alert", "")), icon=None)
 
     st.info(
-        ":material/newspaper: **Latest financial news** is on the **News** page in the sidebar "
-        "under Tools — headlines tailored to your country.",
+        t(":material/newspaper: **Latest financial news** is on the **News** page in the sidebar "
+          "under Tools — headlines tailored to your country."),
         icon=None,
     )
 
@@ -61,22 +62,27 @@ def render() -> None:
     # ── Filter controls ──────────────────────────────────────────────────────
     with st.container(horizontal=True):
         search = st.text_input(
-            "Search modules",
+            t("Search modules"),
             placeholder="Search by topic or keyword…",
             label_visibility="collapsed",
         )
-        category_options = ["All"] + sorted(set(m["category"] for m in EDUCATION_MODULES))
-        selected_category = st.selectbox(
-            "Category",
-            category_options,
+        category_options_en = ["All"] + sorted(set(m["category"] for m in EDUCATION_MODULES))
+        category_options_display = [t(c) for c in category_options_en]
+        selected_category_display = st.selectbox(
+            t("Category"),
+            category_options_display,
             label_visibility="collapsed",
         )
-        level_options = ["All levels", "Beginner", "Intermediate", "Advanced"]
-        selected_level = st.selectbox(
-            "Level",
-            level_options,
+        selected_category = category_options_en[category_options_display.index(selected_category_display)]
+
+        level_options_en = ["All levels", "Beginner", "Intermediate", "Advanced"]
+        level_options_display = [t(lv) for lv in level_options_en]
+        selected_level_display = st.selectbox(
+            t("Level"),
+            level_options_display,
             label_visibility="collapsed",
         )
+        selected_level = level_options_en[level_options_display.index(selected_level_display)]
 
     # Filter modules
     filtered = EDUCATION_MODULES
@@ -85,14 +91,14 @@ def render() -> None:
         filtered = [
             m for m in filtered
             if q in m["title"].lower() or q in m["content"].lower()
-            or any(q in t for t in m["tags"])
+            or any(q in tag for tag in m["tags"])
         ]
     if selected_category != "All":
         filtered = [m for m in filtered if m["category"] == selected_category]
     if selected_level != "All levels":
         filtered = [m for m in filtered if m["level"] == selected_level]
 
-    st.caption(f"{len(filtered)} module{'s' if len(filtered) != 1 else ''} found")
+    st.caption(t("{n} module{suffix} found").format(n=len(filtered), suffix="s" if len(filtered) != 1 else ""))
 
     # ── Module catalog ────────────────────────────────────────────────────────
     if "open_module" not in st.session_state:
@@ -108,7 +114,7 @@ def _render_module_grid(modules: list[dict]) -> None:
     downloaded = st.session_state.get("downloaded_modules", [])
 
     if not modules:
-        st.info("No modules match your search. Try different keywords.", icon=":material/search:")
+        st.info(t("No modules match your search. Try different keywords."), icon=":material/search:")
         return
 
     cols = st.columns(2)
@@ -123,14 +129,14 @@ def _render_module_grid(modules: list[dict]) -> None:
                     unsafe_allow_html=True,
                 )
                 st.caption(
-                    f":material/category: {module['category']}  ·  "
-                    f":material/schedule: {module['duration_min']} min read  ·  "
-                    f"Tags: {', '.join(module['tags'][:3])}"
+                    f":material/category: {t(module['category'])}  ·  "
+                    f":material/schedule: {t('{duration} min read').format(duration=module['duration_min'])}  ·  "
+                    f"{t('Tags: {tags}').format(tags=', '.join(module['tags'][:3]))}"
                 )
                 btn_col, dl_col = st.columns([3, 1])
                 with btn_col:
                     if st.button(
-                        ":material/open_in_new: Read",
+                        t(":material/open_in_new: Read"),
                         key=f"open_{module['id']}",
                         type="primary",
                     ):
@@ -141,23 +147,23 @@ def _render_module_grid(modules: list[dict]) -> None:
                         if st.button(
                             ":material/download:",
                             key=f"dl_{module['id']}",
-                            help="Save for offline access",
+                            help=t("Save for offline access"),
                         ):
                             st.session_state.downloaded_modules = downloaded + [module["id"]]
-                            st.toast(f"'{module['title']}' saved for offline access.", icon=":material/download:")
+                            st.toast(t("'{title}' saved for offline access.").format(title=module["title"]), icon=":material/download:")
                     else:
-                        st.caption("📥 Offline")
+                        st.caption(t("📥 Offline"))
 
 
 def _render_module_detail(module_id: str) -> None:
     module = next((m for m in EDUCATION_MODULES if m["id"] == module_id), None)
     if not module:
-        st.error("Module not found.")
+        st.error(t("Module not found."))
         st.session_state.open_module = None
         st.rerun()
         return
 
-    if st.button(":material/arrow_back: Back to library"):
+    if st.button(t(":material/arrow_back: Back to library")):
         st.session_state.open_module = None
         st.rerun()
 
@@ -168,11 +174,11 @@ def _render_module_detail(module_id: str) -> None:
         unsafe_allow_html=True,
     )
     st.caption(
-        f":material/category: {module['category']}  ·  "
-        f":material/schedule: {module['duration_min']} min read"
+        f":material/category: {t(module['category'])}  ·  "
+        f":material/schedule: {t('{duration} min read').format(duration=module['duration_min'])}"
     )
-    tags_str = " · ".join(f"`{t}`" for t in module["tags"])
-    st.caption(f"Tags: {tags_str}")
+    tags_str = " · ".join(f"`{tag}`" for tag in module["tags"])
+    st.caption(t("Tags: {tags}").format(tags=tags_str))
 
     st.divider()
     st.markdown(module["content"])
@@ -181,34 +187,34 @@ def _render_module_detail(module_id: str) -> None:
     country = st.session_state.get("profile_country", "US")
     regional = get_regional_content(country)
 
-    with st.expander(f":material/place: How this applies in {get_country_name(country)}"):
-        st.markdown(f"**Tax & savings:** {regional.get('tax_note','')}")
-        st.markdown(f"**Credit:** {regional.get('credit_note','')}")
-        st.markdown(f"**Retirement:** {regional.get('retirement_programs','')}")
-        st.warning(f"**Scam watch:** {regional.get('scam_alert','')}", icon=":material/security:")
+    with st.expander(t(":material/place: How this applies in {country}").format(country=get_country_name(country))):
+        st.markdown(t("**Tax & savings:** {note}").format(note=regional.get("tax_note", "")))
+        st.markdown(t("**Credit:** {note}").format(note=regional.get("credit_note", "")))
+        st.markdown(t("**Retirement:** {note}").format(note=regional.get("retirement_programs", "")))
+        st.warning(t("**Scam watch:** {note}").format(note=regional.get("scam_alert", "")), icon=":material/security:")
 
     st.divider()
     # Ask the assistant about this topic
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button(
-            ":material/auto_awesome: Ask Money Tree about this topic",
+            t(":material/auto_awesome: Ask Money Tree about this topic"),
             type="primary",
         ):
             state.add_message(
                 "user",
-                f"I just read about '{module['title']}'. Can you help me understand "
-                f"how it applies to my specific situation?",
+                t("I just read about '{title}'. Can you help me understand "
+                  "how it applies to my specific situation?").format(title=module["title"]),
             )
             st.switch_page("app_pages/assistant.py")
     with col_b:
         downloaded = st.session_state.get("downloaded_modules", [])
         if module["id"] not in downloaded:
-            if st.button(":material/download: Save for offline"):
+            if st.button(t(":material/download: Save for offline")):
                 st.session_state.downloaded_modules = downloaded + [module["id"]]
-                st.toast("Saved for offline access.", icon=":material/download:")
+                st.toast(t("Saved for offline access."), icon=":material/download:")
         else:
-            st.success(":material/check: Saved for offline access")
+            st.success(t(":material/check: Saved for offline access"))
 
 
 # ── Module-level call required by st.Page ────────────────────────────────────
